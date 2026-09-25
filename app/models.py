@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import ForeignKey, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
@@ -15,6 +15,19 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(
         default=lambda: datetime.now(timezone.utc)
+    )
+
+    owned_projects: Mapped[list["Project"]] = relationship(back_populates="owner")
+    project_memberships: Mapped[list["ProjectMember"]] = relationship(
+        back_populates="user"
+    )
+    created_issues: Mapped[list["Issue"]] = relationship(
+        back_populates="creator",
+        foreign_keys="Issue.creator_id",
+    )
+    assigned_issues: Mapped[list["Issue"]] = relationship(
+        back_populates="assignee",
+        foreign_keys="Issue.assignee_id",
     )
 
 
@@ -33,6 +46,12 @@ class Project(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
+    owner: Mapped["User"] = relationship(back_populates="owned_projects")
+    memberships: Mapped[list["ProjectMember"]] = relationship(
+        back_populates="project"
+    )
+    issues: Mapped[list["Issue"]] = relationship(back_populates="project")
+
 
 class ProjectMember(Base):
     __tablename__ = "project_members"
@@ -44,6 +63,9 @@ class ProjectMember(Base):
     joined_at: Mapped[datetime] = mapped_column(
         default=lambda: datetime.now(timezone.utc)
     )
+
+    user: Mapped["User"] = relationship(back_populates="project_memberships")
+    project: Mapped["Project"] = relationship(back_populates="memberships")
 
 
 class Issue(Base):
@@ -65,4 +87,14 @@ class Issue(Base):
     updated_at: Mapped[datetime] = mapped_column(
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    project: Mapped["Project"] = relationship(back_populates="issues")
+    creator: Mapped["User"] = relationship(
+        back_populates="created_issues",
+        foreign_keys=[creator_id],
+    )
+    assignee: Mapped["User | None"] = relationship(
+        back_populates="assigned_issues",
+        foreign_keys=[assignee_id],
     )
