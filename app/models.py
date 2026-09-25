@@ -44,3 +44,25 @@ class ProjectMember(Base):
     joined_at: Mapped[datetime] = mapped_column(
         default=lambda: datetime.now(timezone.utc)
     )
+
+
+class Issue(Base):
+    __tablename__ = "issues"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(30), default="open")
+    priority: Mapped[str] = mapped_column(String(20), default="medium")
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"))
+    creator_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    assignee_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
