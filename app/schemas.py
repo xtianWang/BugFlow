@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -67,3 +68,54 @@ class ProjectMemberResponse(BaseModel):
 
 class MessageResponse(BaseModel):
     message: str
+
+
+IssuePriority = Literal["low", "medium", "high", "urgent"]
+IssueStatus = Literal["open", "in_progress", "resolved", "closed"]
+
+
+class IssueCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    description: str | None = None
+    priority: IssuePriority = "medium"
+    assignee_id: int | None = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class IssueUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = None
+    priority: IssuePriority | None = None
+    assignee_id: int | None = None
+
+    model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def provided_non_nullable_fields_must_not_be_null(self) -> "IssueUpdate":
+        if "title" in self.model_fields_set and self.title is None:
+            raise ValueError("title cannot be null")
+        if "priority" in self.model_fields_set and self.priority is None:
+            raise ValueError("priority cannot be null")
+        return self
+
+
+class IssueStatusUpdate(BaseModel):
+    status: IssueStatus
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class IssueResponse(BaseModel):
+    id: int
+    title: str
+    description: str | None
+    status: str
+    priority: str
+    project_id: int
+    creator_id: int
+    assignee_id: int | None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
