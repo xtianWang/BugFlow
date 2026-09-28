@@ -1,18 +1,12 @@
-import os
 from datetime import datetime, timedelta, timezone
 
 import jwt
 from pwdlib import PasswordHash
 
+from app.config import ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, SECRET_KEY
+
 
 password_hash = PasswordHash.recommended()
-
-SECRET_KEY = os.getenv("BUGFLOW_SECRET_KEY")
-if not SECRET_KEY:
-    raise RuntimeError("BUGFLOW_SECRET_KEY environment variable must be set.")
-
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 
 def hash_password(password: str) -> str:
