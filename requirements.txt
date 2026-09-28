@@ -4,3 +4,4 @@ SQLAlchemy==2.0.54
 pydantic==2.13.5
 pwdlib[argon2]
 PyJWT
+pytest
