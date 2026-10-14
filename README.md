@@ -1,5 +1,34 @@
 # BugFlow
 
+AI Debug Agent V1 扩展见 [运行、架构、接口与验收边界](docs/agent-v1.md)。
+原有业务 v1 保留；Agent 已于 2026-10-14 通过真实模型 + 本机 WSL2/runsc 的小型修复验收，
+Windows 与 Linux 均为 101 项测试通过。验收范围和限制见 [验收记录](docs/验收记录.md)。
+
+### 使用自己的模型服务
+
+在启动后端的同一个 PowerShell 窗口设置以下环境变量：
+
+```powershell
+$env:BUGFLOW_LLM_BASE_URL = 'https://你的兼容服务地址/v1'
+$env:BUGFLOW_LLM_MODEL = '服务商提供的支持工具调用的模型名'
+$env:BUGFLOW_LLM_API_KEY = Read-Host '输入你自己的 API Key' -MaskInput
+```
+
+`-MaskInput` 需要 PowerShell 7.1+；其他环境请使用运行平台的密钥注入功能。
+Key 只交给后端，不放进前端请求、代码或 Git。`.env.example` 只是示例，应用不会自动加载 `.env`。
+地址填写 API 基础路径，不要附加 `/chat/completions`、查询参数或用户名密码。
+当前适配器要求 HTTPS、Bearer 认证及兼容 Chat Completions 的 `tools`、`tool_choice`、`max_tokens`。
+启动后的进程不会自动获得另一个终端新设置的变量，修改终端配置后请重启后端和 worker。
+
+DeepSeek 当前验收使用 `https://api.deepseek.com`、`deepseek-flash`，另设
+`$env:BUGFLOW_LLM_THINKING = 'disabled'` 显式关闭思考模式。
+该配置只接受空值（不发送此字段）或 `disabled`；其他服务不需要时保持未设置。
+
+每个 LLM 实例首次使用工具会做一次无业务数据的 `tool_choice=required` 探测，成功后仍允许普通文本回答。
+探测增加一次模型请求和少量费用，不代表该模型的调试能力已经验收。
+缺少配置返回 `503 llm_not_configured`；非法配置返回 `503 llm_invalid_config`；
+提供商认证失败、不支持工具或返回异常等返回带分类错误码的 `502`，不返回提供商原始错误内容。
+
 BugFlow 是一个面向个人开发者和小型开发团队的轻量 Issue 管理后端。它将项目、成员与 Issue 集中管理，提供认证、权限控制和可追踪的 Issue 状态流转，帮助小团队明确任务归属与处理进度。
 
 ## 核心功能
@@ -118,6 +147,6 @@ BugFlow v1 暂不包含：
 - Comment
 - Notification
 - 文件上传
-- AI 功能
+- 原始业务 v1 不包含 AI；可选 Agent 扩展范围与限制见上方文档
 - Redis / Kafka
 - 微服务

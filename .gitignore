@@ -6,6 +6,10 @@ __pycache__/
 *.pyc
 *.db
 .pytest_cache/
+sandbox/wheels/
+.env
+.env.*
+!.env.example
 
 # IDE and operating system files
 .vscode/
