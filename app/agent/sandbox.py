@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from pathlib import Path
 import re
@@ -20,6 +21,10 @@ class ExecutionTimeout(RuntimeError):
 
 
 class Cancelled(RuntimeError):
+    pass
+
+
+class SandboxCleanupError(RuntimeError):
     pass
 
 
@@ -52,7 +57,7 @@ class Sandbox:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes((path / filename).read_bytes())
             snapshot.chmod(0o755)
-            command = ["docker", "run", "--rm", "--pull=never", "--name", name,
+            command = ["docker", "run", "--pull=never", "--name", name,
                        "--runtime=runsc", "--network=none", "--read-only", "--cap-drop=ALL",
                        "--security-opt=no-new-privileges", "--user=65534:65534",
                        "--pids-limit=64", "--memory=512m", "--memory-swap=512m", "--cpus=1",
@@ -63,16 +68,18 @@ class Sandbox:
                        "--env", "BUGFLOW_SECRET_KEY=isolated-test-only-secret-at-least-32-bytes",
                        "--env", "BUGFLOW_DATABASE_URL=sqlite://", "--entrypoint=/bin/sh", image,
                        "-c", "cp -R /src/. /work/ && cd /work && python -m pytest -q -p no:cacheprovider"]
-            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            process = None
+            reader = None
             output = bytearray()
             def drain():
                 while chunk := process.stdout.read(4096):
                     if len(output) < 16_000:
                         output.extend(chunk[:16_000 - len(output)])
-            reader = threading.Thread(target=drain, daemon=True)
-            reader.start()
-            deadline = time.monotonic() + 60
             try:
+                process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                reader = threading.Thread(target=drain, daemon=True)
+                reader.start()
+                deadline = time.monotonic() + 60
                 while process.poll() is None:
                     if cancelled():
                         raise Cancelled("Task cancelled")
@@ -82,8 +89,32 @@ class Sandbox:
                 reader.join(timeout=2)
                 return {"exit_code": process.returncode, "output": output.decode("utf-8", "replace")}
             finally:
-                subprocess.run(["docker", "rm", "-f", name], capture_output=True, timeout=10)
-                if process.poll() is None:
-                    process.kill()
-                process.wait(timeout=5)
-                process.stdout.close()
+                active_error = sys.exc_info()[0] is not None
+                cleanup_failed = False
+                try:
+                    result = subprocess.run(["docker", "rm", "-f", name],
+                                            capture_output=True, timeout=10)
+                    cleanup_failed = result.returncode != 0
+                except (OSError, subprocess.SubprocessError):
+                    cleanup_failed = True
+                finally:
+                    # Docker cleanup must never skip reaping its local client process.
+                    if process is not None:
+                        try:
+                            if process.poll() is None:
+                                process.kill()
+                        except (OSError, subprocess.SubprocessError):
+                            cleanup_failed = True
+                        finally:
+                            try:
+                                process.wait(timeout=5)
+                            except (OSError, subprocess.SubprocessError):
+                                cleanup_failed = True
+                            finally:
+                                if reader is not None and reader.ident is not None:
+                                    reader.join(timeout=2)
+                                process.stdout.close()
+                if cleanup_failed:
+                    logging.getLogger(__name__).warning("Sandbox cleanup incomplete: %s", name)
+                    if not active_error:
+                        raise SandboxCleanupError("Sandbox cleanup incomplete; operator inspection required")
