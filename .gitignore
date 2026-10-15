@@ -5,6 +5,11 @@
 __pycache__/
 *.pyc
 *.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite
+*.sqlite3
 .pytest_cache/
 sandbox/wheels/
 .env

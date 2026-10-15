@@ -39,10 +39,11 @@ Worker revalidates owner activity/ownership and the operator-maintained reposito
 
 ## Setup
 
-Use Python 3.14 (the version exercised here) and a project virtual environment:
+Use Python 3.12 as the recommended reproduction environment (historically tested on Linux 3.12
+and Windows 3.14). CI targets both versions. Use a project virtual environment:
 
 ```powershell
-python -m venv .venv
+py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 $env:BUGFLOW_SECRET_KEY = python -c "import secrets; print(secrets.token_hex(32))"
@@ -193,6 +194,9 @@ never put keys in command arguments or repository files. `.env.example` is not a
   is an operator responsibility. Do not deploy an unattended worker fleet from this V1.
 - Deadline checks are cooperative between bounded operations; cancellation waits for an in-flight LLM request.
 - On execution exceptions the task records a sanitized error; partial diff/log recovery is not implemented.
+- Docker removal failure cannot skip local client reaping. Cleanup failures log only the generated container
+  name for operator inspection, fail otherwise successful runs, and preserve existing timeout/cancel errors.
+  Container deletion is still not guaranteed if Docker is unavailable; operators must inspect leftover containers.
 - No arbitrary repository language/build command support, test generation, patch application or branch publishing.
 - No provider quality benchmark: deterministic eval verifies orchestration, not model debugging intelligence.
 - No per-user rate limiting or billing controls; deploy as a private development service.
